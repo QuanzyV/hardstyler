@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>HARDSTYLER</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23050506'/%3E%3Cg fill='%23fff'%3E%3Crect x='8' y='13' width='3' height='6'/%3E%3Crect x='14.5' y='8' width='3' height='16'/%3E%3Crect x='21' y='11' width='3' height='10'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
@@ -114,6 +115,26 @@
   .preset{flex:0 0 auto; background:transparent; color:var(--mist); border:1px solid var(--line);}
   .preset:hover:not(:disabled){color:#fff; border-color:rgba(255,255,255,.4); box-shadow:0 0 24px rgba(255,255,255,.1);}
 
+  .prev{flex:0 0 auto; min-width:0; width:50px; height:46px; padding:0; border-radius:10px; background:transparent; color:#fff; border:1px solid var(--line); font-size:12px; letter-spacing:0; box-shadow:0 0 14px rgba(255,255,255,.05); transition:all .6s var(--ease);}
+  .prev:hover{border-color:rgba(255,255,255,.5); box-shadow:0 0 22px rgba(255,255,255,.18); transform:translateY(-1px);}
+  .prev.playing{animation:prevpulse .9s ease-in-out infinite;}
+  @keyframes prevpulse{0%,100%{box-shadow:0 0 14px rgba(255,255,255,.2);}50%{box-shadow:0 0 32px rgba(255,255,255,.65);}}
+
+  /* custom kick dropdown with per-row preview */
+  .kickdd{position:relative; flex:1;}
+  .kicktrigger{width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; background:#0c0c0e; color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:13px 14px; font-family:'Space Mono',monospace; font-size:12px; letter-spacing:.04em; text-transform:none; font-weight:400; cursor:pointer; transition:border-color .6s var(--ease), box-shadow .6s var(--ease); min-width:0;}
+  .kicktrigger:hover{border-color:rgba(255,255,255,.4); box-shadow:0 0 18px rgba(255,255,255,.08);}
+  .kicktrigger .chev{color:var(--mist); font-size:10px; transition:transform .5s var(--ease);}
+  .kickdd.open .kicktrigger .chev{transform:rotate(180deg);}
+  .kickpanel{position:absolute; left:0; right:0; top:calc(100% + 8px); z-index:40; background:#0c0c0e; border:1px solid var(--line); border-radius:12px; padding:6px; box-shadow:0 24px 60px rgba(0,0,0,.7), 0 0 30px rgba(255,255,255,.05); opacity:0; transform:translateY(-10px); pointer-events:none; transition:opacity .45s var(--ease), transform .45s var(--ease); max-height:300px; overflow-y:auto;}
+  .kickdd.open .kickpanel{opacity:1; transform:translateY(0); pointer-events:auto;}
+  .kickopt{display:flex; align-items:center; gap:12px; padding:7px; border-radius:9px; cursor:pointer; transition:background .4s var(--ease);}
+  .kickopt:hover{background:rgba(255,255,255,.06);}
+  .kickopt.sel{background:rgba(255,255,255,.09);}
+  .kickopt .kname{flex:1; font-family:'Space Mono',monospace; font-size:13px; color:var(--ink); letter-spacing:.04em;}
+  .kprev{display:inline-block; width:40px; height:40px; font-size:11px;}
+  .kprev.ghost{border:1px solid transparent; box-shadow:none; pointer-events:none; opacity:.2;}
+
   #status{display:none; margin-top:28px; text-align:center; font-family:'Space Mono',monospace; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:var(--mist);}
   .bar{height:2px; border-radius:2px; background:rgba(255,255,255,.1); overflow:hidden; margin-top:16px;}
   .bar>i{display:block; height:100%; width:0%; background:#fff; box-shadow:0 0 12px rgba(255,255,255,.85); transition:width .3s var(--ease);}
@@ -149,6 +170,7 @@
       <div class="filebadge" id="filebadge"></div>
     </div>
     <input type="file" id="file" accept="audio/*" hidden />
+    <input type="file" id="kickfile" accept="audio/*" hidden />
 
     <div class="detect" id="detect"></div>
     <div id="wavewrap"><canvas id="wave" width="1400" height="224"></canvas></div>
@@ -158,6 +180,12 @@
       <div class="row"><label>Pitch / Speed</label><input type="range" id="pitch" min="0" max="7" step="0.5" value="3"><span class="val" id="pitch_v"></span></div>
       <div class="row"><label>Kick Volume</label><input type="range" id="kick" min="0" max="100" value="72"><span class="val" id="kick_v"></span></div>
       <div class="row"><label>Reverb</label><input type="range" id="reverb" min="0" max="100" value="25"><span class="val" id="reverb_v"></span></div>
+      <div class="row"><label>Kick Sound</label>
+        <div class="kickdd" id="kickdd">
+          <button type="button" class="kicktrigger" id="kicktrigger"><span id="kicklabel">Synth (built-in)</span><span class="chev">▾</span></button>
+          <div class="kickpanel" id="kickpanel"></div>
+        </div>
+      </div>
       <div class="row"><label>Kick Pattern</label>
         <select id="pattern">
           <option value="auto" selected>Auto — doubles up on slow songs</option>
@@ -201,6 +229,8 @@
   const controls=$("controls"), results=$("results"), resultcard=$("resultcard"), statusEl=$("status"), errEl=$("err");
   const goBtn=$("go"), fullSend=$("fullsend"), detectEl=$("detect");
   const bar=$("bar"), statustxt=$("statustxt");
+  const kickdd=$("kickdd"), kicktrigger=$("kicktrigger"), kickpanel=$("kickpanel"), kicklabel=$("kicklabel"), kickFileInput=$("kickfile");
+  let kickBuffers={}, customKickBuffer=null, kickValue="synth", kickList=[];
 
   // build the idle equalizer (signature element)
   (function buildScope(){
@@ -223,6 +253,68 @@
 
   let decoded=null, originalFile=null, audioCtx=null;
   let beatInfo={ beats:[], bpm:0 };   // beats in ORIGINAL-timeline seconds
+
+  // ---------- kick sound selector ----------
+  function renderKickPanel(){
+    kickpanel.innerHTML="";
+    kickList.forEach(k=>{
+      const row=document.createElement("div");
+      row.className="kickopt"+(k.value===kickValue?" sel":"");
+      if(k.preview!==false){
+        const pb=document.createElement("button");
+        pb.type="button"; pb.className="prev kprev"; pb.textContent="▶"; pb.title="Preview "+k.name;
+        pb.addEventListener("click",ev=>{ ev.stopPropagation(); previewKick(k.value, pb); });
+        row.appendChild(pb);
+      } else {
+        const sp=document.createElement("span"); sp.className="kprev ghost"; row.appendChild(sp);
+      }
+      const nm=document.createElement("span"); nm.className="kname"; nm.textContent=k.name; row.appendChild(nm);
+      row.addEventListener("click",()=>selectKick(k.value));
+      kickpanel.appendChild(row);
+    });
+  }
+  function selectKick(value){
+    if(value==="custom"){ kickFileInput.click(); kickdd.classList.remove("open"); return; }
+    kickValue=value;
+    const k=kickList.find(x=>x.value===value); kicklabel.textContent=k?k.name:"Synth (built-in)";
+    renderKickPanel(); kickdd.classList.remove("open");
+  }
+  kicktrigger.addEventListener("click",e=>{ e.stopPropagation(); kickdd.classList.toggle("open"); });
+  document.addEventListener("click",e=>{ if(!kickdd.contains(e.target)) kickdd.classList.remove("open"); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") kickdd.classList.remove("open"); });
+
+  (function initKicks(){
+    kickList=[{value:"synth",name:"Synth (built-in)",preview:true}];
+    fetch("kicks/kicks.json",{cache:"no-store"})
+      .then(r=>{ if(!r.ok) throw 0; return r.json(); })
+      .then(list=>{ (list||[]).forEach(k=> kickList.push({value:"url:kicks/"+k.file, name:k.name, preview:true}) ); })
+      .catch(()=>{})
+      .finally(()=>{ kickList.push({value:"custom",name:"Custom file…",preview:false}); renderKickPanel(); });
+  })();
+
+  kickFileInput.addEventListener("change", async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    try{
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      customKickBuffer=await audioCtx.decodeAudioData(await f.arrayBuffer());
+      let c=kickList.find(x=>x.value==="customfile");
+      if(!c){ c={value:"customfile",name:"Custom: "+f.name,preview:true}; kickList.splice(kickList.length-1,0,c); }
+      else c.name="Custom: "+f.name;
+      kickValue="customfile"; kicklabel.textContent=c.name; renderKickPanel();
+    }catch(err){ showErr("Could not load that kick file."); }
+  });
+
+  async function previewKick(value, btn){
+    try{
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      await audioCtx.resume();
+      const buf=await ensureKickBuffer(value);
+      const t=audioCtx.currentTime+0.03, vol=+$("kick").value/100, intn=+$("intensity").value/100;
+      if(buf) scheduleSampleKick(audioCtx, audioCtx.destination, buf, t, vol, intn>0.02?distortionCurve(intn*30):null);
+      else scheduleKick(audioCtx, audioCtx.destination, t, vol*1.1, distortionCurve(25+intn*0.9));
+      if(btn){ btn.classList.add("playing"); setTimeout(()=>btn.classList.remove("playing"),450); }
+    }catch(err){ showErr("Could not preview that kick."); }
+  }
 
   // ---------- intake ----------
   drop.addEventListener("click",()=>fileInput.click());
@@ -264,49 +356,52 @@
     }
   }
 
-  // ===================== BEAT TRACKING =====================
-  function fft(re,im){
-    const n=re.length;
-    for(let i=1,j=0;i<n;i++){
-      let bit=n>>1; for(;j&bit;bit>>=1) j^=bit; j^=bit;
-      if(i<j){ const tr=re[i];re[i]=re[j];re[j]=tr; const ti=im[i];im[i]=im[j];im[j]=ti; }
-    }
-    for(let len=2;len<=n;len<<=1){
-      const ang=-2*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang);
-      for(let i=0;i<n;i+=len){
-        let cr=1, ci=0;
-        for(let k=0;k<(len>>1);k++){
-          const a=i+k, b=a+(len>>1);
-          const tr=re[b]*cr-im[b]*ci, ti=re[b]*ci+im[b]*cr;
-          re[b]=re[a]-tr; im[b]=im[a]-ti; re[a]+=tr; im[a]+=ti;
-          const ncr=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=ncr;
+  // ===================== BEAT TRACKING (Web-Worker accelerated) =====================
+  // Self-contained core. Optimized FFT: precomputed twiddle + bit-reversal tables,
+  // and real-pair packing (two real frames per complex FFT). The onset envelope,
+  // tempo and beat math are IDENTICAL to the reference version — same beats, just faster.
+  function analyzeCore(x, SR, progress){
+    const N=1024, hop=256, fps=SR/hop, half=N>>1;
+    const win=new Float32Array(N); for(let i=0;i<N;i++) win[i]=0.5-0.5*Math.cos(2*Math.PI*i/(N-1));
+    const rev=new Uint16Array(N);
+    for(let i=1,j=0;i<N;i++){ let bit=N>>1; for(;j&bit;bit>>=1) j^=bit; j^=bit; rev[i]=j; }
+    const cosT=new Float32Array(half), sinT=new Float32Array(half);
+    for(let i=0;i<half;i++){ const a=-2*Math.PI*i/N; cosT[i]=Math.cos(a); sinT[i]=Math.sin(a); }
+    function fft(re,im){
+      for(let i=0;i<N;i++){ const j=rev[i]; if(j>i){ const tr=re[i];re[i]=re[j];re[j]=tr; const ti=im[i];im[i]=im[j];im[j]=ti; } }
+      for(let len=2;len<=N;len<<=1){
+        const h2=len>>1, step=N/len;
+        for(let i=0;i<N;i+=len){
+          for(let k=0,idx=0;k<h2;k++,idx+=step){
+            const wr=cosT[idx], wi=sinT[idx], a=i+k, b=a+h2;
+            const tr=re[b]*wr-im[b]*wi, ti=re[b]*wi+im[b]*wr;
+            re[b]=re[a]-tr; im[b]=im[a]-ti; re[a]+=tr; im[a]+=ti;
+          }
         }
       }
     }
-  }
-
-  async function analyzeBeats(buffer, onProgress){
-    const SR=22050;
-    const off=new OfflineAudioContext(1, Math.max(1,Math.ceil(buffer.duration*SR)), SR);
-    const s=off.createBufferSource(); s.buffer=buffer; s.connect(off.destination); s.start();
-    const mono=(await off.startRendering()).getChannelData(0);
-
-    const N=1024, hop=256, fps=SR/hop;
-    const win=new Float32Array(N); for(let i=0;i<N;i++) win[i]=0.5-0.5*Math.cos(2*Math.PI*i/(N-1));
-    const nF=Math.max(1, Math.floor((mono.length-N)/hop));
+    const nF=Math.max(1, Math.floor((x.length-N)/hop));
     const onset=new Float32Array(nF);
-    const re=new Float32Array(N), im=new Float32Array(N), prev=new Float32Array(N>>1);
-    for(let f=0; f<nF; f++){
-      const o=f*hop;
-      for(let i=0;i<N;i++){ re[i]=mono[o+i]*win[i]; im[i]=0; }
+    const re=new Float32Array(N), im=new Float32Array(N);
+    const prev=new Float32Array(half), magA=new Float32Array(half), magB=new Float32Array(half);
+    let f=0;
+    while(f<nF){
+      const pair=(f+1<nF), o0=f*hop;
+      if(pair){ const o1=(f+1)*hop; for(let i=0;i<N;i++){ re[i]=x[o0+i]*win[i]; im[i]=x[o1+i]*win[i]; } }
+      else { for(let i=0;i<N;i++){ re[i]=x[o0+i]*win[i]; im[i]=0; } }
       fft(re,im);
-      let flux=0;
-      for(let k=0;k<(N>>1);k++){
-        const m=Math.sqrt(re[k]*re[k]+im[k]*im[k]);
-        const d=m-prev[k]; if(d>0) flux+=d; prev[k]=m;
+      magA[0]=Math.abs(re[0]); magB[0]=pair?Math.abs(im[0]):0;
+      for(let k=1;k<half;k++){
+        const nk=N-k;
+        const ar=(re[k]+re[nk])*0.5, ai=(im[k]-im[nk])*0.5;
+        magA[k]=Math.sqrt(ar*ar+ai*ai);
+        if(pair){ const br=(im[k]+im[nk])*0.5, bi=(re[nk]-re[k])*0.5; magB[k]=Math.sqrt(br*br+bi*bi); }
       }
+      let flux=0; for(let k=0;k<half;k++){ const d=magA[k]-prev[k]; if(d>0) flux+=d; prev[k]=magA[k]; }
       onset[f]=flux;
-      if((f & 2047)===0){ onProgress(0.85*f/nF); await new Promise(r=>setTimeout(r)); }
+      if(pair){ let flux2=0; for(let k=0;k<half;k++){ const d=magB[k]-prev[k]; if(d>0) flux2+=d; prev[k]=magB[k]; } onset[f+1]=flux2; }
+      f+=pair?2:1;
+      if(progress && (f & 4095)<2) progress(0.9*f/nF);
     }
     if(nF<8) return { beats:[], bpm:0 };
 
@@ -324,7 +419,6 @@
       const sc=acc*w; if(sc>bestScore){ bestScore=sc; bestLag=lag; }
     }
     const period=bestLag;
-    onProgress(0.92);
 
     const gstd=Math.max(1, period/32), R=Math.ceil(gstd*3);
     const kern=[]; let ks=0; for(let d=-R;d<=R;d++){ const g=Math.exp(-0.5*(d/gstd)*(d/gstd)); kern.push(g); ks+=g; }
@@ -354,8 +448,35 @@
       const ibi=[]; for(let i=1;i<beats.length;i++) ibi.push(beats[i]-beats[i-1]);
       ibi.sort((a,b)=>a-b); const med=ibi[ibi.length>>1]; if(med>0) bpm=60/med;
     }
-    onProgress(1);
+    if(progress) progress(1);
     return { beats, bpm };
+  }
+
+  // Run analyzeCore on a background Web Worker so the UI never freezes.
+  let beatWorker=null;
+  try{
+    const src=analyzeCore.toString()+
+      "\nself.onmessage=function(e){var d=e.data;var r=analyzeCore(d.x,d.SR,function(p){self.postMessage({progress:p});});self.postMessage({result:r});};";
+    beatWorker=new Worker(URL.createObjectURL(new Blob([src],{type:"application/javascript"})));
+  }catch(e){ beatWorker=null; }
+
+  async function analyzeBeats(buffer, onProgress){
+    const SR=22050;
+    const off=new OfflineAudioContext(1, Math.max(1,Math.ceil(buffer.duration*SR)), SR);
+    const s=off.createBufferSource(); s.buffer=buffer; s.connect(off.destination); s.start();
+    const mono=(await off.startRendering()).getChannelData(0);
+    onProgress(0.15);
+    if(beatWorker){
+      return await new Promise(resolve=>{
+        beatWorker.onmessage=ev=>{
+          if(ev.data.progress!=null) onProgress(0.15+0.85*ev.data.progress);
+          else if(ev.data.result) resolve(ev.data.result);
+        };
+        const copy=mono.slice();
+        beatWorker.postMessage({x:copy, SR}, [copy.buffer]);
+      });
+    }
+    return analyzeCore(mono, SR, p=>onProgress(0.15+0.85*p));
   }
 
   // ---------- waveform + beat overlay (monochrome glow) ----------
@@ -394,12 +515,31 @@
     for(let ch=0;ch<2;ch++){ const d=imp.getChannelData(ch); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay); }
     return imp;
   }
-  function scheduleKick(ctx,dest,t,vol,intensity){
+  function scheduleKick(ctx,dest,t,vol,curve){
     const osc=ctx.createOscillator(), g=ctx.createGain(), dist=ctx.createWaveShaper();
-    dist.curve=distortionCurve(25+intensity*0.9); dist.oversample="4x";
+    dist.curve=curve; dist.oversample="4x";
     osc.frequency.setValueAtTime(170,t); osc.frequency.exponentialRampToValueAtTime(45,t+0.08);
     g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+0.30);
     osc.connect(g); g.connect(dist); dist.connect(dest); osc.start(t); osc.stop(t+0.34);
+  }
+  function scheduleSampleKick(ctx,dest,buffer,t,vol,curve){
+    const s=ctx.createBufferSource(); s.buffer=buffer;
+    const g=ctx.createGain(); g.gain.value=vol*1.1;
+    if(curve){ const d=ctx.createWaveShaper(); d.curve=curve; d.oversample="2x"; s.connect(d); d.connect(g); }
+    else s.connect(g);
+    g.connect(dest); s.start(t);
+  }
+  async function ensureKickBuffer(value){
+    if(value==="synth"||!value) return null;
+    if(value==="customfile"||value==="custom") return customKickBuffer;
+    if(value.indexOf("url:")===0){
+      const url=value.slice(4);
+      if(kickBuffers[url]) return kickBuffers[url];
+      if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      const ab=await (await fetch(url)).arrayBuffer();
+      const buf=await audioCtx.decodeAudioData(ab); kickBuffers[url]=buf; return buf;
+    }
+    return null;
   }
 
   function buildKickTimes(beats, speed, musicDur, pattern, effBpmAfterSpeed){
@@ -442,6 +582,10 @@
       const effBpm=(beatInfo.bpm||0)*speed;
       const kicks=buildKickTimes(beatInfo.beats||[], speed, musicDur, pattern, effBpm);
 
+      let kickBuf=null; try{ kickBuf=await ensureKickBuffer(kickValue); }catch(e){ kickBuf=null; }
+      const synthCurve=distortionCurve(25+intensity*0.9);
+      const sampleCurve=intensity>0.02?distortionCurve(intensity*30):null;
+
       const duckLevel=1-(0.25+0.55*intensity);
       side.gain.setValueAtTime(1,0);
       for(let i=0;i<kicks.length;i++){
@@ -449,7 +593,8 @@
         const ramp=Math.min((next-t)*0.85, 0.22);
         side.gain.setValueAtTime(duckLevel,t);
         side.gain.linearRampToValueAtTime(1, Math.min(musicDur, t+Math.max(0.02,ramp)));
-        scheduleKick(ctx, master, t, kickVol*1.1, intensity);
+        if(kickBuf) scheduleSampleKick(ctx, master, kickBuf, t, kickVol, sampleCurve);
+        else scheduleKick(ctx, master, t, kickVol*1.1, synthCurve);
       }
 
       src.start(0);

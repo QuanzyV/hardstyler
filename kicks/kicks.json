@@ -1,0 +1,6 @@
+[
+  { "name": "Classic",     "file": "classic.wav" },
+  { "name": "Raw / Hard",  "file": "raw.wav" },
+  { "name": "Deep Sub",    "file": "deep.wav" },
+  { "name": "Tight Punch", "file": "punch.wav" }
+]
