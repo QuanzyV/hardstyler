@@ -17,6 +17,7 @@ These are the kick sounds that show up in the **Kick Sound** dropdown in HARDSTY
 
    - `name` is what shows in the dropdown.
    - `file` is the exact filename you dropped here (case-sensitive).
+   - **Order matters:** the dropdown lists kicks in the same order as this file. Put new kicks at the **top** to surface them first.
 3. Commit + push (or just reload if you're testing locally over a server). The new kick appears in the dropdown automatically.
 
 ## Notes

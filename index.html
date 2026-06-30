@@ -60,7 +60,11 @@
     margin-bottom:26px; backdrop-filter:blur(6px);
     box-shadow:0 30px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
     animation:riseIn 1.6s var(--ease) .3s both;
+    position:relative; z-index:1;
   }
+  /* while the kick dropdown is open, lift the whole controls card above the result card
+     so the floating panel can never be clipped by a later card's stacking context */
+  #maincard.ddopen{z-index:60;}
   #resultcard{animation:riseIn 1.2s var(--ease) both;}
 
   /* signature: idle equalizer / oscilloscope */
@@ -91,7 +95,32 @@
   .detect .meta{font-family:'Space Mono',monospace; color:var(--mist); font-size:11px; letter-spacing:.18em; text-transform:uppercase;}
 
   #wavewrap{display:none; margin-top:20px; animation:riseIn 1s var(--ease) both;}
-  canvas{width:100%; height:112px; display:block; background:rgba(255,255,255,.02); border:1px solid var(--line); border-radius:12px; box-shadow:inset 0 0 34px rgba(255,255,255,.03);}
+  canvas{width:100%; display:block; background:rgba(255,255,255,.02); border:1px solid var(--line); border-radius:12px; box-shadow:inset 0 0 34px rgba(255,255,255,.03); touch-action:none;}
+  #trimwave{height:60px;}
+  #wave{height:150px; cursor:crosshair;}
+  #trimstage,#wavestage{position:relative; user-select:none; -webkit-user-select:none;}
+  #wavestage{margin-top:4px;}
+  .trimrow{display:flex; align-items:center; gap:12px; margin:2px 0 8px; flex-wrap:wrap;}
+  .trimrow .lab{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--mist); flex:1; min-width:150px;}
+  .trimrow .rng{font-family:'Space Mono',monospace; font-size:11px; color:#fff; text-shadow:0 0 12px rgba(255,255,255,.3);}
+  .trimdim{position:absolute; top:0; bottom:0; background:rgba(0,0,0,.55); pointer-events:none; border-radius:10px;}
+  .trimhandle{position:absolute; top:-3px; bottom:-3px; width:16px; margin-left:-8px; cursor:ew-resize; z-index:5; touch-action:none;}
+  .trimhandle::before{content:""; position:absolute; left:7px; top:0; bottom:0; width:2px; background:#fff; box-shadow:0 0 10px rgba(255,255,255,.85);}
+  .trimhandle::after{content:""; position:absolute; left:2px; top:50%; width:12px; height:26px; margin-top:-13px; border:1px solid rgba(255,255,255,.55); border-radius:4px; background:rgba(12,12,14,.92); box-shadow:0 0 14px rgba(255,255,255,.22);}
+  .trimhandle:hover::after{border-color:#fff; box-shadow:0 0 20px rgba(255,255,255,.5);}
+  #scrubber{position:absolute; top:0; bottom:0; width:0; border-left:2px dashed rgba(255,255,255,.9); box-shadow:0 0 14px rgba(255,255,255,.55); z-index:6; cursor:ew-resize; touch-action:none;}
+  #scrubber::after{content:""; position:absolute; top:-2px; left:-8px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 0 14px rgba(255,255,255,.9);}
+  #beatDel{position:absolute; top:-13px; transform:translateX(-50%); z-index:7; width:24px; height:24px; padding:0; min-width:0; flex:0 0 auto; border-radius:50%; font-size:12px; line-height:1; font-family:'Space Mono',monospace; letter-spacing:0; text-transform:none; color:#fff; background:rgba(12,12,14,.95); border:1px solid rgba(255,255,255,.6); box-shadow:0 0 16px rgba(255,255,255,.4); cursor:pointer; transition:all .3s var(--ease);}
+  #beatDel:hover{background:#fff; color:#000; box-shadow:0 0 24px rgba(255,255,255,.85); transform:translateX(-50%) scale(1.14);}
+  .seg{display:inline-flex; gap:6px;}
+  .ebtn.active{color:#000; background:#fff; border-color:#fff; box-shadow:0 0 18px rgba(255,255,255,.45);}
+  .ebtn:disabled{opacity:.3; cursor:not-allowed;}
+  .editbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
+  .edithint{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.08em; color:var(--mist); flex:1; min-width:170px;}
+  .editcount{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.06em; color:#fff; text-shadow:0 0 12px rgba(255,255,255,.3);}
+  .editbtns{display:flex; gap:6px;}
+  .ebtn{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; color:var(--mist); background:transparent; border:1px solid var(--line); border-radius:8px; padding:7px 11px; min-width:0; flex:0 0 auto; font-weight:400; transition:all .5s var(--ease);}
+  .ebtn:hover{color:#fff; border-color:rgba(255,255,255,.45); box-shadow:0 0 16px rgba(255,255,255,.09); transform:translateY(-1px);}
 
   .controls{display:none;}
   .row{display:flex; align-items:center; gap:18px; margin:24px 0;}
@@ -161,7 +190,7 @@
   <h1>Hardstyler</h1>
   <p class="sub">drop a track — it finds the beat — send it</p>
 
-  <div class="card">
+  <div class="card" id="maincard">
     <div class="scope" id="scope"></div>
 
     <div id="drop">
@@ -173,12 +202,57 @@
     <input type="file" id="kickfile" accept="audio/*" hidden />
 
     <div class="detect" id="detect"></div>
-    <div id="wavewrap"><canvas id="wave" width="1400" height="224"></canvas></div>
+    <div id="wavewrap">
+      <!-- TRIM: choose what part of the song is fed into the hardstyler -->
+      <div class="trimrow">
+        <span class="lab">Trim — what goes into the hardstyler</span>
+        <span class="rng" id="trimrange"></span>
+        <button type="button" class="ebtn" id="trimfull">Full song</button>
+      </div>
+      <div id="trimstage">
+        <canvas id="trimwave" width="1400" height="108"></canvas>
+        <div class="trimdim" id="trimdimL"></div>
+        <div class="trimdim" id="trimdimR"></div>
+        <div class="trimhandle" id="trimL"></div>
+        <div class="trimhandle" id="trimR"></div>
+      </div>
+
+      <!-- BEAT EDITOR -->
+      <div class="editbar">
+        <span class="seg">
+          <button type="button" class="ebtn active" id="tool_move" title="Move / toggle / drag beats">Move</button>
+          <button type="button" class="ebtn" id="tool_mute" title="Brush across to mute a stretch">Mute</button>
+        </span>
+        <span class="seg">
+          <button type="button" class="ebtn" id="zoom_out" title="Zoom out">–</button>
+          <button type="button" class="ebtn" id="zoom_in" title="Zoom in">+</button>
+          <button type="button" class="ebtn" id="zoom_fit" title="Fit whole song">Fit</button>
+        </span>
+        <span class="seg">
+          <button type="button" class="ebtn" id="scrub_toggle" title="Show a movable line to place a beat precisely">Scrubber</button>
+          <button type="button" class="ebtn" id="scrub_add" title="Add a beat on the scrubber line" disabled>Add ▎</button>
+        </span>
+        <span class="seg">
+          <button type="button" class="ebtn" id="eb_all">All</button>
+          <button type="button" class="ebtn" id="eb_none">None</button>
+          <button type="button" class="ebtn" id="eb_inv">Invert</button>
+          <button type="button" class="ebtn" id="eb_reset">Reset</button>
+        </span>
+        <span class="editcount" id="editcount"></span>
+      </div>
+      <div class="edithint" id="edithint"></div>
+      <div id="wavestage">
+        <canvas id="wave" width="1400" height="240"></canvas>
+        <div id="scrubber" hidden></div>
+        <button type="button" id="beatDel" hidden title="Delete this beat">✕</button>
+      </div>
+    </div>
 
     <div class="controls" id="controls">
       <div class="row"><label>Intensity</label><input type="range" id="intensity" min="0" max="100" value="70"><span class="val" id="intensity_v"></span></div>
       <div class="row"><label>Pitch / Speed</label><input type="range" id="pitch" min="0" max="7" step="0.5" value="3"><span class="val" id="pitch_v"></span></div>
       <div class="row"><label>Kick Volume</label><input type="range" id="kick" min="0" max="100" value="72"><span class="val" id="kick_v"></span></div>
+      <div class="row"><label>Song Volume</label><input type="range" id="songvol" min="0" max="150" value="100"><span class="val" id="songvol_v"></span></div>
       <div class="row"><label>Reverb</label><input type="range" id="reverb" min="0" max="100" value="25"><span class="val" id="reverb_v"></span></div>
       <div class="row"><label>Kick Sound</label>
         <div class="kickdd" id="kickdd">
@@ -245,7 +319,7 @@
     }
   })();
 
-  ["intensity","pitch","kick","reverb"].forEach(id=>{
+  ["intensity","pitch","kick","reverb","songvol"].forEach(id=>{
     const el=$(id), out=$(id+"_v");
     const fmt=v=> id==="pitch" ? "+"+v+" st" : v+"%";
     const upd=()=>out.textContent=fmt(el.value); el.addEventListener("input",upd); upd();
@@ -253,6 +327,17 @@
 
   let decoded=null, originalFile=null, audioCtx=null;
   let beatInfo={ beats:[], bpm:0 };   // beats in ORIGINAL-timeline seconds
+  // --- beat editor + trim state ---
+  let fullPeaks=null;        // cached [{min,max}] high-res across whole song
+  let editGrid=[];           // [{t:seconds, on:bool}] — which beats fire a kick
+  let detectionOK=false;     // did beat detection produce a usable grid?
+  let editWired=false;       // listeners attached once
+  let view={start:0,end:1};  // visible time window (s) on the beat canvas (zoom/pan)
+  let trim={start:0,end:1};  // region of the song fed into the hardstyler (s)
+  let tool="move";           // "move" | "mute"
+  let scrubOn=false, scrubT=0;
+  let hoverIdx=-1;
+  const drag={mode:null,idx:-1,val:false,moved:false,t0:0,t1:0,startX:0,vs:0,ve:0};
 
   // ---------- kick sound selector ----------
   function renderKickPanel(){
@@ -273,15 +358,18 @@
       kickpanel.appendChild(row);
     });
   }
+  const maincard=$("maincard");
+  function ddOpen(){ kickdd.classList.add("open"); if(maincard) maincard.classList.add("ddopen"); }
+  function ddClose(){ kickdd.classList.remove("open"); if(maincard) maincard.classList.remove("ddopen"); }
   function selectKick(value){
-    if(value==="custom"){ kickFileInput.click(); kickdd.classList.remove("open"); return; }
+    if(value==="custom"){ ddClose(); kickFileInput.click(); return; }
     kickValue=value;
     const k=kickList.find(x=>x.value===value); kicklabel.textContent=k?k.name:"Synth (built-in)";
-    renderKickPanel(); kickdd.classList.remove("open");
+    renderKickPanel(); ddClose();
   }
-  kicktrigger.addEventListener("click",e=>{ e.stopPropagation(); kickdd.classList.toggle("open"); });
-  document.addEventListener("click",e=>{ if(!kickdd.contains(e.target)) kickdd.classList.remove("open"); });
-  document.addEventListener("keydown",e=>{ if(e.key==="Escape") kickdd.classList.remove("open"); });
+  kicktrigger.addEventListener("click",e=>{ e.stopPropagation(); kickdd.classList.contains("open")?ddClose():ddOpen(); });
+  document.addEventListener("click",e=>{ if(!kickdd.contains(e.target)) ddClose(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") ddClose(); });
 
   (function initKicks(){
     kickList=[{value:"synth",name:"Synth (built-in)",preview:true}];
@@ -344,11 +432,12 @@
         detectEl.innerHTML='<span class="meta">Analyzing — '+Math.round(p*100)+'%</span>';
       });
       beatInfo=info;
-      detectEl.innerHTML = info.beats.length>=4
+      detectionOK = info.beats.length>=4;
+      detectEl.innerHTML = detectionOK
         ? '<span class="bpm">'+Math.round(info.bpm)+'</span><span class="meta"> BPM · '+info.beats.length+' beats locked</span>'
         : '<span class="meta">No clear beat found — using a steady 150 BPM grid.</span>';
-      drawWave(decoded, info.beats);
       $("wavewrap").style.display="block";
+      initEditor(info.beats);
       controls.style.display="block";
     }catch(err){
       console.error(err); showErr("Couldn't decode that file. Try mp3 or wav.");
@@ -479,25 +568,220 @@
     return analyzeCore(mono, SR, p=>onProgress(0.15+0.85*p));
   }
 
-  // ---------- waveform + beat overlay (monochrome glow) ----------
-  function drawWave(buffer, beats){
-    const cv=$("wave"), ctx=cv.getContext("2d"), W=cv.width, H=cv.height;
-    ctx.clearRect(0,0,W,H);
-    const data=buffer.getChannelData(0), step=Math.floor(data.length/W)||1, mid=H/2;
-    ctx.shadowColor="rgba(255,255,255,.35)"; ctx.shadowBlur=4;
-    ctx.strokeStyle="rgba(255,255,255,.42)"; ctx.lineWidth=1; ctx.beginPath();
-    for(let x=0;x<W;x++){
-      let min=1,max=-1; const s=x*step;
-      for(let i=0;i<step;i++){ const v=data[s+i]||0; if(v<min)min=v; if(v>max)max=v; }
-      ctx.moveTo(x, mid+min*mid*0.95); ctx.lineTo(x, mid+max*mid*0.95);
+  // ---------- waveform + interactive beat editor + trim (monochrome glow) ----------
+  const dur0 = ()=> decoded?decoded.duration:1;
+  function computeFullPeaks(buffer, P){
+    const data=buffer.getChannelData(0), n=data.length, peaks=new Array(P), per=n/P;
+    for(let b=0;b<P;b++){
+      let mn=1,mx=-1; const s=Math.floor(b*per), e=Math.max(s+1,Math.floor((b+1)*per));
+      for(let i=s;i<e && i<n;i++){ const v=data[i]; if(v<mn)mn=v; if(v>mx)mx=v; }
+      if(mn>mx){mn=0;mx=0;} peaks[b]={min:mn,max:mx};
     }
-    ctx.stroke();
-    const dur=buffer.duration;
-    ctx.shadowColor="rgba(255,255,255,.9)"; ctx.shadowBlur=9;
-    ctx.strokeStyle="rgba(255,255,255,.95)"; ctx.lineWidth=1.5; ctx.beginPath();
-    beats.forEach(t=>{ const x=Math.round(t/dur*W); ctx.moveTo(x,0); ctx.lineTo(x,H); });
-    ctx.stroke();
-    ctx.shadowBlur=0;
+    return peaks;
+  }
+  function initEditGrid(beats){ editGrid=(beats||[]).map(t=>({t, on:true})); }
+  function activeBeats(){ return editGrid.filter(b=>b.on).map(b=>b.t).sort((a,b)=>a-b); }
+  function fmtTime(s){ s=Math.max(0,s); const m=Math.floor(s/60), ss=Math.floor(s%60); return m+":"+(ss<10?"0":"")+ss; }
+  function updateEditCount(){
+    const on=editGrid.filter(b=>b.on).length;
+    const el=$("editcount"); if(el) el.textContent = editGrid.length ? (on+" / "+editGrid.length+" beats") : "";
+  }
+  function drawWaveTo(cv, vs, ve){
+    const ctx=cv.getContext("2d"), W=cv.width, H=cv.height, mid=H/2;
+    ctx.clearRect(0,0,W,H);
+    if(!fullPeaks) return;
+    const dur=dur0(), P=fullPeaks.length, span=Math.max(1e-6, ve-vs);
+    ctx.shadowColor="rgba(255,255,255,.30)"; ctx.shadowBlur=4;
+    ctx.strokeStyle="rgba(255,255,255,.34)"; ctx.lineWidth=1; ctx.beginPath();
+    for(let x=0;x<W;x++){
+      const t0=vs+(x/W)*span, t1=vs+((x+1)/W)*span;
+      let b0=Math.floor(t0/dur*P), b1=Math.ceil(t1/dur*P);
+      b0=Math.max(0,Math.min(P-1,b0)); b1=Math.max(b0+1,Math.min(P,b1));
+      let mn=1,mx=-1; for(let b=b0;b<b1;b++){ const p=fullPeaks[b]; if(p.min<mn)mn=p.min; if(p.max>mx)mx=p.max; }
+      if(mn>mx){mn=0;mx=0;}
+      ctx.moveTo(x, mid+mn*mid*0.92); ctx.lineTo(x, mid+mx*mid*0.92);
+    }
+    ctx.stroke(); ctx.shadowBlur=0;
+  }
+  function beatRect(){ return $("wave").getBoundingClientRect(); }
+  function pxToTime(clientX){ const r=beatRect(); const f=Math.max(0,Math.min(1,(clientX-r.left)/r.width)); return view.start+f*(view.end-view.start); }
+  function fracOf(t){ return (t-view.start)/(view.end-view.start); }
+  function nearestBeat(clientX, tolPx){
+    const r=beatRect(), span=view.end-view.start; let bi=-1,bd=Infinity;
+    for(let i=0;i<editGrid.length;i++){
+      const px=r.left + ((editGrid[i].t-view.start)/span)*r.width;
+      const d=Math.abs(clientX-px); if(d<bd){bd=d;bi=i;}
+    }
+    return (bi>=0 && bd<=tolPx)?bi:-1;
+  }
+  function positionOverlays(){
+    const w=$("wavestage").getBoundingClientRect().width;
+    const sc=$("scrubber");
+    if(scrubOn && scrubT>=view.start && scrubT<=view.end){ sc.hidden=false; sc.style.left=(fracOf(scrubT)*w)+"px"; } else sc.hidden=true;
+    const del=$("beatDel");
+    if(hoverIdx>=0 && hoverIdx<editGrid.length && editGrid[hoverIdx].t>=view.start && editGrid[hoverIdx].t<=view.end){
+      del.hidden=false; del.style.left=(fracOf(editGrid[hoverIdx].t)*w)+"px";
+    } else del.hidden=true;
+  }
+  function redrawTrim(){
+    const cv=$("trimwave"); drawWaveTo(cv, 0, dur0());
+    const dur=dur0(), w=$("trimstage").getBoundingClientRect().width;
+    const ls=trim.start/dur, le=trim.end/dur;
+    $("trimdimL").style.left="0px"; $("trimdimL").style.width=(ls*w)+"px";
+    $("trimdimR").style.left=(le*w)+"px"; $("trimdimR").style.width=Math.max(0,(1-le)*w)+"px";
+    $("trimL").style.left=(ls*w)+"px"; $("trimR").style.left=(le*w)+"px";
+    $("trimrange").textContent = fmtTime(trim.start)+" – "+fmtTime(trim.end)+"  ("+fmtTime(trim.end-trim.start)+")";
+  }
+  function redrawBeats(){
+    const cv=$("wave"), ctx=cv.getContext("2d"), W=cv.width, H=cv.height, mid=H/2;
+    drawWaveTo(cv, view.start, view.end);
+    const span=view.end-view.start;
+    const tsx=((trim.start-view.start)/span)*W, tex=((trim.end-view.start)/span)*W;
+    ctx.fillStyle="rgba(0,0,0,.45)";
+    if(tsx>0) ctx.fillRect(0,0,Math.min(W,tsx),H);
+    if(tex<W) ctx.fillRect(Math.max(0,tex),0,W-Math.max(0,tex),H);
+    if(drag.mode==="mute"){
+      const a=Math.min(drag.t0,drag.t1), b=Math.max(drag.t0,drag.t1);
+      const xa=((a-view.start)/span)*W, xb=((b-view.start)/span)*W;
+      ctx.fillStyle = drag.val ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.4)";
+      ctx.fillRect(xa,0,Math.max(1,xb-xa),H);
+      ctx.strokeStyle="rgba(255,255,255,.5)"; ctx.lineWidth=1; ctx.strokeRect(xa+0.5,0.5,Math.max(1,xb-xa),H-1);
+    }
+    for(let i=0;i<editGrid.length;i++){
+      const b=editGrid[i]; if(b.t<view.start||b.t>view.end) continue;
+      const x=Math.round(((b.t-view.start)/span)*W);
+      const inTrim=b.t>=trim.start && b.t<=trim.end;
+      if(i===hoverIdx){ ctx.strokeStyle="rgba(255,255,255,.22)"; ctx.lineWidth=9; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+      if(!inTrim){ ctx.strokeStyle="rgba(255,255,255,.10)"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x,mid-6); ctx.lineTo(x,mid+6); ctx.stroke(); }
+      else if(b.on){ ctx.shadowColor="rgba(255,255,255,.9)"; ctx.shadowBlur=8; ctx.strokeStyle="rgba(255,255,255,.95)"; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); ctx.shadowBlur=0; }
+      else { ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x,mid-7); ctx.lineTo(x,mid+7); ctx.stroke(); }
+    }
+    positionOverlays();
+  }
+  function redraw(){ if(!decoded) return; redrawTrim(); redrawBeats(); }
+  function clampView(){
+    const dur=dur0(), minW=Math.max(0.25, dur/600);
+    let w=Math.min(Math.max(view.end-view.start, minW), dur);
+    view.end=view.start+w;
+    if(view.end>dur){ view.end=dur; view.start=dur-w; }
+    if(view.start<0){ view.start=0; view.end=Math.min(dur,w); }
+  }
+  function zoomAt(factor, centerT){
+    const dur=dur0(), minW=Math.max(0.25,dur/600);
+    let w=(view.end-view.start)*factor; w=Math.min(Math.max(w,minW),dur);
+    const c=(centerT==null)?(view.start+view.end)/2:centerT;
+    const ratio=(view.end-view.start)>0?(c-view.start)/(view.end-view.start):0.5;
+    view.start=c-ratio*w; view.end=view.start+w; clampView(); redrawBeats();
+  }
+  function setTool(t){
+    tool=t;
+    $("tool_move").classList.toggle("active", t==="move");
+    $("tool_mute").classList.toggle("active", t==="mute");
+    $("edithint").textContent = t==="mute"
+      ? "Mute brush — drag across the timeline to silence (or restore) a stretch of kicks."
+      : "Move — click a beat to toggle it · drag a beat to move it · hover a beat for ✕ · drag empty space to pan · scroll to zoom.";
+  }
+  function initEditor(beats){
+    initEditGrid(beats);
+    const dur=dur0();
+    trim={start:0,end:dur}; view={start:0,end:dur};
+    fullPeaks=computeFullPeaks(decoded, 4096);
+    scrubOn=false; scrubT=dur/2; hoverIdx=-1; drag.mode=null;
+    $("scrubber").hidden=true; $("beatDel").hidden=true;
+    $("scrub_add").disabled=true; $("scrub_toggle").classList.remove("active");
+    setTool("move");
+    wireEditor();
+    redraw(); updateEditCount();
+  }
+  function wireEditor(){
+    if(editWired) return; editWired=true;
+    const cv=$("wave");
+    cv.addEventListener("pointerdown",e=>{
+      if(!decoded) return; e.preventDefault();
+      try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+      const t=pxToTime(e.clientX);
+      if(tool==="mute"){
+        const ni=nearestBeat(e.clientX,10);
+        drag.mode="mute"; drag.t0=t; drag.t1=t; drag.startX=e.clientX; drag.moved=false;
+        drag.val = ni>=0 ? !editGrid[ni].on : false;
+      } else {
+        const ni=nearestBeat(e.clientX,9);
+        if(ni>=0){ drag.mode="beat"; drag.idx=ni; drag.startX=e.clientX; drag.moved=false; }
+        else { drag.mode="pan"; drag.startX=e.clientX; drag.vs=view.start; drag.ve=view.end; drag.moved=false;
+               if(scrubOn){ scrubT=t; positionOverlays(); } }
+      }
+      redrawBeats();
+    });
+    cv.addEventListener("pointermove",e=>{
+      if(drag.mode==null){
+        const ni=nearestBeat(e.clientX,9);
+        if(ni!==hoverIdx){ hoverIdx=ni; redrawBeats(); }
+        return;
+      }
+      if(Math.abs(e.clientX-drag.startX)>3) drag.moved=true;
+      const t=pxToTime(e.clientX);
+      if(drag.mode==="mute"){
+        drag.t1=t; const lo=Math.min(drag.t0,drag.t1), hi=Math.max(drag.t0,drag.t1);
+        for(const b of editGrid){ if(b.t>=lo && b.t<=hi) b.on=drag.val; }
+        updateEditCount(); redrawBeats();
+      } else if(drag.mode==="beat"){
+        editGrid[drag.idx].t=Math.max(0,Math.min(dur0(),t)); redrawBeats();
+      } else if(drag.mode==="pan"){
+        const span=drag.ve-drag.vs, r=beatRect();
+        const dt=((e.clientX-drag.startX)/r.width)*span;
+        view.start=drag.vs-dt; view.end=drag.ve-dt; clampView(); redrawBeats();
+      }
+    });
+    function endDrag(e){
+      if(drag.mode==null) return;
+      const moved=drag.moved, mode=drag.mode, idx=drag.idx;
+      if(mode==="beat"){ if(!moved) editGrid[idx].on=!editGrid[idx].on; editGrid.sort((a,b)=>a.t-b.t); hoverIdx=-1; }
+      else if(mode==="mute" && !moved){ const ni=nearestBeat(e.clientX,10); if(ni>=0) editGrid[ni].on=!editGrid[ni].on; }
+      drag.mode=null; updateEditCount(); redrawBeats();
+    }
+    cv.addEventListener("pointerup",endDrag);
+    cv.addEventListener("pointercancel",()=>{ drag.mode=null; redrawBeats(); });
+    cv.addEventListener("wheel",e=>{ if(!decoded) return; e.preventDefault(); zoomAt(e.deltaY>0?1.2:0.83, pxToTime(e.clientX)); }, {passive:false});
+
+    $("beatDel").addEventListener("click",e=>{ e.stopPropagation(); if(hoverIdx>=0){ editGrid.splice(hoverIdx,1); hoverIdx=-1; updateEditCount(); redrawBeats(); } });
+    $("tool_move").addEventListener("click",()=>setTool("move"));
+    $("tool_mute").addEventListener("click",()=>setTool("mute"));
+    $("zoom_in").addEventListener("click",()=>zoomAt(0.6));
+    $("zoom_out").addEventListener("click",()=>zoomAt(1.66));
+    $("zoom_fit").addEventListener("click",()=>{ view={start:0,end:dur0()}; redrawBeats(); });
+    $("scrub_toggle").addEventListener("click",()=>{
+      scrubOn=!scrubOn; $("scrub_toggle").classList.toggle("active",scrubOn); $("scrub_add").disabled=!scrubOn;
+      if(scrubOn && (scrubT<view.start||scrubT>view.end)) scrubT=(view.start+view.end)/2;
+      redrawBeats();
+    });
+    $("scrub_add").addEventListener("click",()=>{ if(!scrubOn) return; editGrid.push({t:Math.max(0,Math.min(dur0(),scrubT)),on:true}); editGrid.sort((a,b)=>a.t-b.t); updateEditCount(); redrawBeats(); });
+    const sc=$("scrubber");
+    sc.addEventListener("pointerdown",e=>{ e.stopPropagation(); e.preventDefault(); try{sc.setPointerCapture(e.pointerId);}catch(_){}
+      const mv=ev=>{ scrubT=Math.max(view.start,Math.min(view.end,pxToTime(ev.clientX))); positionOverlays(); };
+      const up=()=>{ sc.removeEventListener("pointermove",mv); sc.removeEventListener("pointerup",up); };
+      sc.addEventListener("pointermove",mv); sc.addEventListener("pointerup",up);
+    });
+    function wireHandle(handle, which){
+      handle.addEventListener("pointerdown",e=>{ e.preventDefault(); try{handle.setPointerCapture(e.pointerId);}catch(_){}
+        const move=ev=>{
+          const r=$("trimstage").getBoundingClientRect(); const f=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)); const t=f*dur0();
+          const minGap=Math.max(0.2, dur0()*0.01);
+          if(which==="L") trim.start=Math.max(0, Math.min(t, trim.end-minGap));
+          else trim.end=Math.min(dur0(), Math.max(t, trim.start+minGap));
+          redraw();
+        };
+        const up=()=>{ handle.removeEventListener("pointermove",move); handle.removeEventListener("pointerup",up); };
+        handle.addEventListener("pointermove",move); handle.addEventListener("pointerup",up);
+      });
+    }
+    wireHandle($("trimL"),"L"); wireHandle($("trimR"),"R");
+    $("trimfull").addEventListener("click",()=>{ trim={start:0,end:dur0()}; redraw(); });
+
+    $("eb_all").addEventListener("click",()=>{ editGrid.forEach(b=>b.on=true); updateEditCount(); redrawBeats(); });
+    $("eb_none").addEventListener("click",()=>{ editGrid.forEach(b=>b.on=false); updateEditCount(); redrawBeats(); });
+    $("eb_inv").addEventListener("click",()=>{ editGrid.forEach(b=>b.on=!b.on); updateEditCount(); redrawBeats(); });
+    $("eb_reset").addEventListener("click",()=>{ initEditGrid(beatInfo.beats||[]); hoverIdx=-1; updateEditCount(); redraw(); });
+    window.addEventListener("resize",()=>{ if(decoded) redraw(); });
   }
 
   // ---------- preset ----------
@@ -542,21 +826,29 @@
     return null;
   }
 
-  function buildKickTimes(beats, speed, musicDur, pattern, effBpmAfterSpeed){
-    let out = beats.map(t=>t/speed).filter(t=>t>=0 && t<musicDur);
-    const insertMid = arr => { const ex=[]; for(let i=0;i<arr.length-1;i++) ex.push((arr[i]+arr[i+1])/2); return arr.concat(ex).sort((a,b)=>a-b); };
-    if(out.length>=4){
+  function buildKickTimes(beats, speed, musicDur, pattern, effBpmAfterSpeed, allowFallback){
+    let out = beats.map(t=>t/speed).filter(t=>t>=0 && t<musicDur).sort((a,b)=>a-b);
+    // median spacing → only insert offbeats inside normal gaps, never bridge a muted gap
+    let med=0;
+    if(out.length>=2){ const iv=[]; for(let i=1;i<out.length;i++) iv.push(out[i]-out[i-1]); iv.sort((a,b)=>a-b); med=iv[iv.length>>1]; }
+    const insertMid = arr => {
+      const ex=[];
+      for(let i=0;i<arr.length-1;i++){ const gap=arr[i+1]-arr[i]; if(med<=0 || gap < med*1.75) ex.push((arr[i]+arr[i+1])/2); }
+      return arr.concat(ex).sort((a,b)=>a-b);
+    };
+    if(out.length>=2){
       if(pattern==="double") out=insertMid(out);
       else if(pattern==="half") out=out.filter((_,i)=>i%2===0);
       else if(pattern==="auto" && effBpmAfterSpeed>0 && effBpmAfterSpeed<128) out=insertMid(out);
     }
-    if(out.length<4){ out=[]; const b=60/150; for(let t=0;t<musicDur;t+=b) out.push(t); }
+    if(allowFallback && out.length<4){ out=[]; const b=60/150; for(let t=0;t<musicDur;t+=b) out.push(t); }
     return out;
   }
 
   // ---------- render ----------
   goBtn.addEventListener("click", async ()=>{
     if(!decoded) return showErr("Drop a song first.");
+    ddClose();
     showErr(""); goBtn.disabled=true; fullSend.disabled=true;
     statusEl.style.display="block"; bar.classList.add("indet"); statustxt.textContent="Cooking the drop";
     resultcard.style.display="none";
@@ -566,7 +858,11 @@
       const kickVol=+$("kick").value/100, revAmt=+$("reverb").value/100, pattern=$("pattern").value;
 
       const rate=decoded.sampleRate, speed=Math.pow(2,semis/12);
-      const musicDur=decoded.duration/speed;
+      const songVol=(+$("songvol").value)/100;
+      const regS=Math.max(0, Math.min(trim.start, decoded.duration));
+      const regE=Math.max(regS+0.05, Math.min(trim.end, decoded.duration));
+      const regionDur=regE-regS;
+      const musicDur=regionDur/speed;
       const revSec=0.4+revAmt*2.6, tail=revSec+0.6, total=musicDur+tail;
       const ctx=new OfflineAudioContext(2, Math.ceil(total*rate), rate);
 
@@ -576,11 +872,14 @@
 
       const src=ctx.createBufferSource(); src.buffer=decoded; src.playbackRate.value=speed;
       const mDist=ctx.createWaveShaper(); mDist.curve=distortionCurve(8+intensity*55); mDist.oversample="2x";
+      const musicGain=ctx.createGain(); musicGain.gain.value=songVol;
       const side=ctx.createGain();
-      src.connect(mDist); mDist.connect(side); side.connect(master); side.connect(conv);
+      src.connect(mDist); mDist.connect(musicGain); musicGain.connect(side); side.connect(master); side.connect(conv);
 
       const effBpm=(beatInfo.bpm||0)*speed;
-      const kicks=buildKickTimes(beatInfo.beats||[], speed, musicDur, pattern, effBpm);
+      const srcBeats = editGrid.length ? activeBeats() : (beatInfo.beats||[]);
+      const baseBeats = srcBeats.filter(t=>t>=regS && t<=regE).map(t=>t-regS);
+      const kicks=buildKickTimes(baseBeats, speed, musicDur, pattern, effBpm, !detectionOK);
 
       let kickBuf=null; try{ kickBuf=await ensureKickBuffer(kickValue); }catch(e){ kickBuf=null; }
       const synthCurve=distortionCurve(25+intensity*0.9);
@@ -597,7 +896,7 @@
         else scheduleKick(ctx, master, t, kickVol*1.1, synthCurve);
       }
 
-      src.start(0);
+      src.start(0, regS, regionDur);
       const rendered=await ctx.startRendering();
       const url=URL.createObjectURL(new Blob([encodeWAV(rendered)],{type:"audio/wav"}));
       $("hsAudio").src=url;

@@ -1,4 +1,7 @@
 [
+  { "name": "Hardstyle — A major", "file": "hardstyle-kick_A_major.wav" },
+  { "name": "Hardstyle — F minor", "file": "hardstyle-kick_F_minor.wav" },
+  { "name": "Hardstyle — G major", "file": "hardstyle-kick_G_major.wav" },
   { "name": "Classic",     "file": "classic.wav" },
   { "name": "Raw / Hard",  "file": "raw.wav" },
   { "name": "Deep Sub",    "file": "deep.wav" },
